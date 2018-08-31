@@ -80,6 +80,9 @@
             <goals>
               <goal>jar</goal>
             </goals>
+            <configuration>
+              <failOnError>false</failOnError>
+            </configuration>
           </execution>
         </executions>
         <configuration>
@@ -116,6 +119,16 @@
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
       <version>[@SLF4J_API_VERSION@,)</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentracing</groupId>
+      <artifactId>opentracing-api</artifactId>
+      <version>@OPENTRACING_API_VERSION@</version>
+    </dependency>
+    <dependency>
+      <groupId>io.opentracing</groupId>
+      <artifactId>opentracing-util</artifactId>
+      <version>@OPENTRACING_API_VERSION@</version>
     </dependency>
   </dependencies>
 

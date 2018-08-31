@@ -34,6 +34,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 
+import io.opentracing.Scope;
+import io.opentracing.Span;
+import io.opentracing.Tracer;
+import io.opentracing.util.GlobalTracer;
+
 /**
  * A thread-safe implementation of a deferred result for easy asynchronous
  * processing.
@@ -574,6 +579,7 @@ public final class Deferred<T> {
    * reconstituted on the thread that begins the callback chain.
    */
   private final Map mdcContext = MDC.getCopyOfContextMap();
+  private final Span span = GlobalTracer.get().activeSpan();
 
   /**
    * Atomically compares and swaps the state of this Deferred.
@@ -1254,44 +1260,46 @@ public final class Deferred<T> {
    * Executes all the callbacks in the current chain.
    */
   private void runCallbacks() {
-    Map old = setMdc(mdcContext);
-    while (true) {
-      Callback cb = null;
-      Callback eb = null;
-      synchronized (this) {
-        // Read those into local variables so we can call doCall and invoke the
-        // callbacks without holding the lock on `this', which would cause a
-        // deadlock if we try to addCallbacks to `this' while a callback is
-        // running.
-        if (callbacks != null && next_callback != last_callback) {
-          cb = callbacks[next_callback++];
-          eb = callbacks[next_callback++];
+    try (Scope scope = GlobalTracer.get().scopeManager().activate(span, false)) {
+      Map old = setMdc(mdcContext);
+      while (true) {
+        Callback cb = null;
+        Callback eb = null;
+        synchronized (this) {
+          // Read those into local variables so we can call doCall and invoke the
+          // callbacks without holding the lock on `this', which would cause a
+          // deadlock if we try to addCallbacks to `this' while a callback is
+          // running.
+          if (callbacks != null && next_callback != last_callback) {
+            cb = callbacks[next_callback++];
+            eb = callbacks[next_callback++];
+          }
+          // Also, we may need to atomically change the state to DONE.
+          // Otherwise if another thread is blocked in addCallbacks right before
+          // we're done processing the last element, we'd enter state DONE and
+          // leave this method, and then addCallbacks would add callbacks that
+          // would never get called.
+          else {
+            state = DONE;
+            callbacks = null;
+            next_callback = last_callback = 0;
+            break;
+          }
         }
-        // Also, we may need to atomically change the state to DONE.
-        // Otherwise if another thread is blocked in addCallbacks right before
-        // we're done processing the last element, we'd enter state DONE and
-        // leave this method, and then addCallbacks would add callbacks that
-        // would never get called.
-        else {
-          state = DONE;
-          callbacks = null;
-          next_callback = last_callback = 0;
+
+        //final long start = System.nanoTime();
+        //LOG.debug("START >>>>>>>>>>>>>>>>>> doCall(" + cb + ", " + eb + ')');
+        if (doCall(result instanceof Exception ? eb : cb)) {
+          //LOG.debug("PAUSE ================== doCall(" + cb + ", " + eb
+          //          + ") in " + (System.nanoTime() - start) / 1000 + "us");
           break;
         }
+        //LOG.debug("DONE  <<<<<<<<<<<<<<<<<< doCall(" + cb + ", " + eb
+        //          + "), result=" + result
+        //          + " in " + (System.nanoTime() - start) / 1000 + "us");
       }
-
-      //final long start = System.nanoTime();
-      //LOG.debug("START >>>>>>>>>>>>>>>>>> doCall(" + cb + ", " + eb + ')');
-      if (doCall(result instanceof Exception ? eb : cb)) {
-        //LOG.debug("PAUSE ================== doCall(" + cb + ", " + eb
-        //          + ") in " + (System.nanoTime() - start) / 1000 + "us");
-        break;
-      }
-      //LOG.debug("DONE  <<<<<<<<<<<<<<<<<< doCall(" + cb + ", " + eb
-      //          + "), result=" + result
-      //          + " in " + (System.nanoTime() - start) / 1000 + "us");
+      setMdc(old);
     }
-    setMdc(old);
   }
 
   /**
