@@ -1260,7 +1260,7 @@ public final class Deferred<T> {
    * Executes all the callbacks in the current chain.
    */
   private void runCallbacks() {
-    try (Scope scope = GlobalTracer.get().scopeManager().activate(span, false)) {
+    try (Scope scope = GlobalTracer.get().scopeManager().activate(span)) {
       Map old = setMdc(mdcContext);
       while (true) {
         Callback cb = null;

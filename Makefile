@@ -30,7 +30,7 @@ package := com.stumbleupon.async
 spec_title := SUAsync Library
 spec_vendor := The SUAsync Authors
 # Semantic Versioning (see http://semver.org/).
-spec_version := 1.4.1-FLIPBOARD
+spec_version := 1.4.2-FLIPBOARD
 suasync_SOURCES := \
 	src/Callback.java	\
 	src/CallbackOverflowError.java	\
@@ -40,7 +40,7 @@ suasync_SOURCES := \
 	src/TimeoutException.java	\
 
 SLF4J_API_VERSION := 1.6.0
-OPENTRACING_API_VERSION := 0.31.0
+OPENTRACING_API_VERSION := 0.33.0
 suasync_LIBADD := libs/slf4j-api-$(SLF4J_API_VERSION).jar
 AM_JAVACFLAGS := -Xlint
 package_dir := $(subst .,/,$(package))
